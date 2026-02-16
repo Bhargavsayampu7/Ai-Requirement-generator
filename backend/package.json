@@ -1,0 +1,20 @@
+{
+  "name": "ai-requirement-generator-backend",
+  "version": "1.0.0",
+  "description": "Backend API for AI Requirement Generator",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": ["ai", "requirements", "gemini"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  }
+}
