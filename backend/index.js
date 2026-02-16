@@ -22,12 +22,18 @@ app.use('/generate', generateRouter);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Something went wrong!', 
-    message: err.message 
+  res.status(500).json({
+    error: 'Something went wrong!',
+    message: err.message
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// Only start server if not in Vercel environment
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
+
+// Export for Vercel serverless
+export default app;
