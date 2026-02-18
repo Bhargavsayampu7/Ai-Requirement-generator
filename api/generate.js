@@ -198,7 +198,7 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: 'Configuration error', message: 'GEMINI_API_KEY is not set in Vercel environment variables.' });
         }
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
         const requestBody = {
             contents: [{
