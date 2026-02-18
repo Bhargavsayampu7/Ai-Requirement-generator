@@ -2,17 +2,6 @@ import express from 'express';
 
 const router = express.Router();
 
-// Function to clean markdown symbols from Gemini output
-function cleanGeminiText(text) {
-    return text
-        .replace(/\*\*/g, '')      // remove bold **
-        .replace(/\*/g, '')         // remove stray *
-        .replace(/#+\s?/g, '')      // remove headings
-        .replace(/`/g, '')          // remove code backticks
-        .replace(/_{2,}/g, '')      // remove underscores
-        .trim();
-}
-
 // System prompt for requirement generation
 const SYSTEM_PROMPT = `You are a Senior Product Manager + UX Architect + Business Analyst.
 
@@ -46,9 +35,6 @@ No bullet points here - just clean prose.
 List 5-7 key business metrics. Format each as:
 
 Metric Name - Brief description of what it measures and why it matters
-
-Example:
-User Activation Rate - Percentage of signups who complete onboarding within 24 hours, indicating product-market fit and onboarding effectiveness
 
 ═══════════════════════════════════════════════════════════
 
@@ -92,7 +78,6 @@ FLOW: [Name of the flow]
 1. [First step]
 2. [Second step]
 3. [Third step]
-4. [Continue until completion]
 
 [Repeat for each flow]
 
@@ -102,12 +87,6 @@ FLOW: [Name of the flow]
 
 Write 10-12 user stories grouped by persona.
 Format: As a [user type], I want [goal], so that [benefit]
-
-Group them under persona names like this:
-
-For [Persona Name]:
-- As a [user], I want [goal], so that [benefit]
-- As a [user], I want [goal], so that [benefit]
 
 For [Persona Name]:
 - As a [user], I want [goal], so that [benefit]
@@ -123,135 +102,36 @@ Given [context]
 When [action]
 Then [expected result]
 
-[Repeat for each critical story]
-
 ═══════════════════════════════════════════════════════════
 
 8. KEY RISKS & MITIGATION
 
-CRITICAL: You MUST generate this section. Do not skip it.
-
 Identify 3-5 major risks that could prevent success.
-For each risk, provide a mitigation strategy.
 
-Format:
 Risk: [What could go wrong]
 Impact: [High/Medium/Low]
 Mitigation: [How to prevent or reduce this risk]
 
-Example:
-Risk: Low-quality investor profiles diluting platform value
-Impact: High
-Mitigation: Implement accreditation verification, minimum investment history requirement, and profile quality scoring
-
 ═══════════════════════════════════════════════════════════
 
 CRITICAL REQUIREMENTS:
-✓ Generate ALL 8 sections above - do not skip any section
-✓ NEVER use asterisks (*) or (**) anywhere in your output
-✓ Use dashes (-) for lists, not asterisks
-✓ Write like a senior PM, not an AI
-✓ Be specific and actionable
-✓ Use real-world examples
-✓ Think about business viability
-✓ Consider technical feasibility
-✓ Focus on MVP scope
-✓ No emojis or excessive enthusiasm
-✓ No marketing fluff
-✓ Professional but conversational
+- Generate ALL 8 sections above - do not skip any section
+- NEVER use asterisks (*) or (**) anywhere in your output
+- Use dashes (-) for lists, not asterisks
+- Write like a senior PM, not an AI
+- Be specific and actionable`;
 
-Make it look like something you'd present to a CEO or investor.`;
+// Function to clean any stray markdown symbols
+function cleanText(text) {
+    return text
+        .replace(/\*\*/g, '')
+        .replace(/\*/g, '')
+        .replace(/#+\s?/g, '')
+        .replace(/`/g, '')
+        .replace(/_{2,}/g, '')
+        .trim();
+}
 
-router.post('/', async (req, res) => {
-    try {
-        const { idea } = req.body;
-
-        // Validation
-        if (!idea || idea.trim().length === 0) {
-            return res.status(400).json({
-                error: 'Idea is required',
-                message: 'Please provide a startup idea to generate requirements.'
-            });
-        }
-
-        if (idea.length < 10) {
-            return res.status(400).json({
-                error: 'Idea too short',
-                message: 'Please provide a more detailed description of your startup idea.'
-            });
-        }
-
-        // Check if API key is configured
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                error: 'Configuration error',
-                message: 'Gemini API key is not configured. Please add GEMINI_API_KEY to your .env file.'
-            });
-        }
-
-        // Generate requirements using Gemini REST API directly
-        const apiKey = process.env.GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-        const prompt = `${SYSTEM_PROMPT}\n\nStartup idea:\n${idea}`;
-
-        const requestBody = {
-            contents: [{
-                parts: [{
-                    text: prompt
-                }]
-            }]
-        };
-
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || 'API request failed');
-        }
-
-        const data = await response.json();
-        const rawText = data.candidates[0].content.parts[0].text;
-
-        // Clean markdown symbols from the output
-        const generatedText = cleanGeminiText(rawText);
-
-        // Parse the generated text into sections
-        const sections = parseGeneratedContent(generatedText);
-
-        res.json({
-            success: true,
-            data: {
-                rawContent: generatedText,
-                sections: sections
-            }
-        });
-
-    } catch (error) {
-        console.error('Error generating requirements:', error);
-
-        // Handle specific API errors
-        if (error.message?.includes('API key')) {
-            return res.status(401).json({
-                error: 'Invalid API key',
-                message: 'The Gemini API key is invalid. Please check your configuration.'
-            });
-        }
-
-        res.status(500).json({
-            error: 'Generation failed',
-            message: error.message || 'Failed to generate requirements. Please try again.'
-        });
-    }
-});
-
-// Helper function to parse generated content into sections
 function parseGeneratedContent(content) {
     const sections = {
         productOverview: '',
@@ -264,7 +144,6 @@ function parseGeneratedContent(content) {
         keyRisks: ''
     };
 
-    // Split content by main headings
     const lines = content.split('\n');
     let currentSection = null;
     let sectionContent = [];
@@ -273,64 +152,99 @@ function parseGeneratedContent(content) {
         const upperLine = line.toUpperCase();
 
         if (upperLine.includes('PRODUCT OVERVIEW') || upperLine.includes('1. PRODUCT OVERVIEW')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'productOverview';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'productOverview'; sectionContent = [];
         } else if (upperLine.includes('SUCCESS METRICS') || upperLine.includes('2. SUCCESS METRICS') || upperLine.includes('KPIS')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'successMetrics';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'successMetrics'; sectionContent = [];
         } else if (upperLine.includes('USER PERSONAS') || upperLine.includes('3. USER PERSONAS')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'userPersonas';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'userPersonas'; sectionContent = [];
         } else if (upperLine.includes('MVP SCOPE') || upperLine.includes('4. MVP SCOPE') || upperLine.includes('PRIORITIZATION')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'mvpScope';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'mvpScope'; sectionContent = [];
         } else if (upperLine.includes('USER FLOWS') || upperLine.includes('5. USER FLOWS')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'userFlows';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'userFlows'; sectionContent = [];
         } else if (upperLine.includes('USER STORIES') || upperLine.includes('6. USER STORIES')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'userStories';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'userStories'; sectionContent = [];
         } else if (upperLine.includes('ACCEPTANCE CRITERIA') || upperLine.includes('7. ACCEPTANCE CRITERIA')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'acceptanceCriteria';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'acceptanceCriteria'; sectionContent = [];
         } else if (upperLine.includes('KEY RISKS') || upperLine.includes('8. KEY RISKS') || upperLine.includes('MITIGATION')) {
-            if (currentSection) {
-                sections[currentSection] = sectionContent.join('\n').trim();
-            }
-            currentSection = 'keyRisks';
-            sectionContent = [];
+            if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
+            currentSection = 'keyRisks'; sectionContent = [];
         } else if (currentSection) {
             sectionContent.push(line);
         }
     }
 
-    // Add the last section
-    if (currentSection) {
-        sections[currentSection] = sectionContent.join('\n').trim();
-    }
-
+    if (currentSection) sections[currentSection] = sectionContent.join('\n').trim();
     return sections;
 }
+
+router.post('/', async (req, res) => {
+    try {
+        const { idea } = req.body;
+
+        if (!idea || idea.trim().length === 0) {
+            return res.status(400).json({ error: 'Idea is required', message: 'Please provide a startup idea.' });
+        }
+
+        if (idea.length < 10) {
+            return res.status(400).json({ error: 'Idea too short', message: 'Please provide a more detailed description.' });
+        }
+
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({ error: 'Configuration error', message: 'OPENAI_API_KEY is not configured.' });
+        }
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-3.5-turbo',
+                messages: [
+                    { role: 'system', content: SYSTEM_PROMPT },
+                    { role: 'user', content: `Startup idea:\n${idea}` }
+                ],
+                max_tokens: 2000,
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const rawText = data.choices[0].message.content;
+        const generatedText = cleanText(rawText);
+        const sections = parseGeneratedContent(generatedText);
+
+        res.json({
+            success: true,
+            data: { rawContent: generatedText, sections }
+        });
+
+    } catch (error) {
+        console.error('Error generating requirements:', error);
+
+        if (error.message?.includes('API key') || error.message?.includes('Incorrect API key')) {
+            return res.status(401).json({ error: 'Invalid API key', message: 'The OpenAI API key is invalid.' });
+        }
+
+        res.status(500).json({
+            error: 'Generation failed',
+            message: error.message || 'Failed to generate requirements. Please try again.'
+        });
+    }
+});
 
 export default router;
